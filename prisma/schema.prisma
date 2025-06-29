@@ -1,0 +1,79 @@
+// Prisma schema for Reserves, Proposals, Votes, Members, and Balances
+// Supports SQLite, PostgreSQL, MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = env("DATABASE_PROVIDER") // "sqlite", "postgresql", or "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Reserve {
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  contractAddress       String     @unique @map("contract_address")
+  governanceTokenName   String     @map("governance_token_name")
+  governanceTokenSymbol String     @map("governance_token_symbol")
+  treasuryTokenName     String     @map("treasury_token_name")
+  treasuryTokenSymbol   String     @map("treasury_token_symbol")
+  createdBy             String     @map("created_by")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+  proposals             Proposal[]
+  members               ReserveMember[]
+  balances              ReserveBalance[]
+}
+
+model Proposal {
+  id                Int       @id @default(autoincrement())
+  reserve           Reserve   @relation(fields: [reserveId], references: [id])
+  reserveId         Int       @map("reserve_id")
+  title             String
+  description       String?
+  proposer          String
+  status            String
+  proposalType      String?   @map("proposal_type")
+  contractProposalId Int?     @map("contract_proposal_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  startTime         DateTime? @map("start_time")
+  endTime           DateTime? @map("end_time")
+  votes             Vote[]
+}
+
+model Vote {
+  id         Int      @id @default(autoincrement())
+  proposal   Proposal @relation(fields: [proposalId], references: [id])
+  proposalId Int      @map("proposal_id")
+  voter      String
+  voteType   String   @map("vote_type")
+  weight     Decimal  @map("weight")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([proposalId, voter])
+}
+
+model ReserveMember {
+  id           Int      @id @default(autoincrement())
+  reserve      Reserve  @relation(fields: [reserveId], references: [id])
+  reserveId    Int      @map("reserve_id")
+  memberAddress String  @map("member_address")
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  isOwner      Boolean  @default(false) @map("is_owner")
+
+  @@unique([reserveId, memberAddress])
+}
+
+model ReserveBalance {
+  id         Int      @id @default(autoincrement())
+  reserve    Reserve  @relation(fields: [reserveId], references: [id])
+  reserveId  Int      @map("reserve_id")
+  address    String
+  tokenType  String   @map("token_type")
+  balance    Decimal  @default(0)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([reserveId, address, tokenType])
+}
