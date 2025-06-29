@@ -48,6 +48,24 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
 # Optional npm cache directory
 .npm
 
@@ -134,3 +152,33 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Hardhat
+/cache/
+/artifacts/
+/typechain-types/
+
+# Build and production
+/build
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+
+# pnpm
+.pnpm-debug.log*
+
+# pnpm
+.pnp/
+
+# Hardhat
+/cache/
+/artifacts/
+/typechain-types/
