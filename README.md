@@ -1,5 +1,7 @@
 # OpenTreasury
 
+**⚠️ NOTE: ** Work Still in Progress. Incomplete :(
+
 ## Components
 
 - [React Web Interface](/lib/ui-001)
