@@ -1,0 +1,106 @@
+// Prisma schema for Reserves, Proposals, Votes, Members, and Balances
+// Supports SQLite, PostgreSQL, MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Use SQLite in development by default (file-based, no server needed)
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Reserve {
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  contractAddress       String     @unique @map("contract_address")
+  governanceTokenName   String     @map("governance_token_name")
+  governanceTokenSymbol String     @map("governance_token_symbol")
+  treasuryTokenName     String     @map("treasury_token_name")
+  treasuryTokenSymbol   String     @map("treasury_token_symbol")
+  createdBy             String     @map("created_by")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+  proposals             Proposal[]
+  members               ReserveMember[]
+  balances              ReserveBalance[]
+}
+
+model DeployedTreasury {
+  id                    Int       @id @default(autoincrement())
+  name                  String
+  tokenName             String    @map("token_name")
+  tokenSymbol           String    @map("token_symbol")
+  tokenAddress          String    @map("token_address") @unique
+  vaultAddress          String    @map("vault_address") @unique
+  ownerAddress          String    @map("owner_address")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+}
+
+model Proposal {
+  id                Int       @id @default(autoincrement())
+  reserve           Reserve   @relation(fields: [reserveId], references: [id])
+  reserveId         Int       @map("reserve_id")
+  title             String
+  description       String?
+  proposer          String
+  status            String
+  proposalType      String?   @map("proposal_type")
+  policyName        String?   @map("policy_name")
+  contractAddress   String?   @map("contract_address")
+  contractProposalId Int?     @map("contract_proposal_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  startTime         DateTime? @map("start_time")
+  endTime           DateTime? @map("end_time")
+  votes             Vote[]
+}
+
+model Vote {
+  id         Int      @id @default(autoincrement())
+  proposal   Proposal @relation(fields: [proposalId], references: [id])
+  proposalId Int      @map("proposal_id")
+  voter      String
+  voteType   String   @map("vote_type")
+  weight     Decimal  @map("weight")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([proposalId, voter])
+}
+
+model ReserveMember {
+  id           Int      @id @default(autoincrement())
+  reserve      Reserve  @relation(fields: [reserveId], references: [id])
+  reserveId    Int      @map("reserve_id")
+  memberAddress String  @map("member_address")
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  isOwner      Boolean  @default(false) @map("is_owner")
+
+  @@unique([reserveId, memberAddress])
+}
+
+model ReserveBalance {
+  id         Int      @id @default(autoincrement())
+  reserve    Reserve  @relation(fields: [reserveId], references: [id])
+  reserveId  Int      @map("reserve_id")
+  address    String
+  tokenType  String   @map("token_type")
+  balance    Decimal  @default(0)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([reserveId, address, tokenType])
+}
+
+model ContractAddress {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  address     String
+  network     String   @default("mainnet")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([name, network])
+}

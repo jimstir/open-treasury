@@ -1,6 +1,6 @@
 # Open Treasury Smart Contracts
 
-This directory contains the smart contracts for the Open Treasury project.
+The smart contracts for the Open Treasury project.
 
 ## Setup
 
@@ -19,12 +19,6 @@ This directory contains the smart contracts for the Open Treasury project.
    npx hardhat test
    ```
 
-## Project Structure
-
-- `/contracts` - Solidity smart contracts
-- `/test` - Test files
-- `/artifacts` - Compiled contracts (auto-generated)
-- `/cache` - Build cache (auto-generated)
 
 ## Dependencies
 

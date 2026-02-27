@@ -24,10 +24,8 @@ const CreateTreasuryModal: React.FC<CreateTreasuryModalProps> = ({ isOpen, onClo
     symbol: '',
     // TreasuryVault fields
     resName: '',
-    // Additional settings
-    tToken: '',  // Will be set after token deployment
-    tokenName: '', // For TreasuryVault ERC20
-    tokenSymbol: '' // For TreasuryVault ERC20
+    tokenName: '',
+    tokenSymbol: ''
   });
   
   const [isDeploying, setIsDeploying] = useState(false);
@@ -48,7 +46,7 @@ const CreateTreasuryModal: React.FC<CreateTreasuryModalProps> = ({ isOpen, onClo
       newErrors.symbol = 'Symbol must be 2-5 characters';
     }
     
-    // Treasury Treasury validations
+    // Treasury validations
     if (!formData.resName.trim()) {
       newErrors.resName = 'Treasury name is required';
     }
@@ -94,10 +92,14 @@ const CreateTreasuryModal: React.FC<CreateTreasuryModalProps> = ({ isOpen, onClo
       setIsDeploying(true);
       setDeploymentStep('deployingToken');
       
-      // This will trigger the deployment sequence in the parent component
-      const result = await onDeploy(formData);
-      
-      // The parent component should handle the deployment and return the addresses
+      // Call the parent's onDeploy with the form data
+      const result = await onDeploy({
+        name: formData.name,
+        symbol: formData.symbol,
+        resName: formData.resName,
+        tokenName: formData.tokenName,
+        tokenSymbol: formData.tokenSymbol
+      });
       console.log('Deployment successful:', result);
       setDeploymentStep('completed');
       onClose();
@@ -237,6 +239,7 @@ const CreateTreasuryModal: React.FC<CreateTreasuryModalProps> = ({ isOpen, onClo
                 </div>
               )}
             </div>
+
           </div>
 
           <div style={{ marginBottom: '2rem' }}>

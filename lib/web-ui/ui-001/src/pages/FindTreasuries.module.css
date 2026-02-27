@@ -99,8 +99,8 @@
 
 /* Treasury List */
 .treasuryList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
 }
 
@@ -120,24 +120,11 @@
 
 .treasuryHeader {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem;
   background-color: var(--background);
   border-bottom: 1px solid var(--border);
-}
-
-.treasuryIcon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: var(--primary-light);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 1rem;
-  font-weight: 600;
-  color: var(--primary);
-  font-size: 0.9rem;
 }
 
 .treasuryInfo {
@@ -145,16 +132,12 @@
 }
 
 .treasuryInfo h3 {
-  margin: 0 0 0.25rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.treasuryInfo p {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-light);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 
 .treasuryValue {
@@ -171,14 +154,49 @@
 }
 
 .detailItem {
+  margin-bottom: 1rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.detailLabel {
-  font-size: 0.85rem;
-  color: var(--text-light);
+.section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.sectionTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.addressWithCopy {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--bg-tertiary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius);
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .detailValue {
@@ -512,9 +530,9 @@
 /* Info Button */
 .infoButton {
   flex: 1;
-  background: white;
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: white;
   padding: 0.65rem 1.25rem;
   border-radius: var(--radius);
   font-size: 0.95rem;
@@ -525,8 +543,8 @@
 }
 
 .infoButton:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
 }
 
 /* Join Button */
@@ -678,4 +696,49 @@
   .actionButton {
     width: 100%;
   }
+}
+
+/* Load More Trigger */
+.loadMoreTrigger {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+  min-height: 50px;
+}
+
+.loadingMore {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+/* Load More Button */
+.loadMoreContainer {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.loadMoreButton {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 200px;
+}
+
+.loadMoreButton:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.loadMoreButton:disabled {
+  background: var(--text-light);
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
 }

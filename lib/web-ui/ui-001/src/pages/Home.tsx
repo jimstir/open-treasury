@@ -47,7 +47,7 @@ const Home = () => {
           <h1 style={{ marginBottom: '1.5rem' }}>The Future Treasury  </h1>
           <p className="hero-subtitle" style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
             Create a transparent treasury on-chain. 
-            Proof-of-Treasurys, Proof-of-Revenue, Proof-of-Transactions and more with OpenTreasury.
+            Prove the assets, revenue, transactions and more with Open Treasury.
           </p>
           <div className="hero-buttons" style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
             <Link to="/dashboard" className="btn primary" style={{ padding: '0.75rem 2rem' }}>Launch App</Link>
