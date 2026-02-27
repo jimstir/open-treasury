@@ -182,3 +182,42 @@ dist
 /cache/
 /artifacts/
 /typechain-types/
+
+# Hardhat (nested anywhere)
+**/artifacts/
+**/cache/
+**/typechain-types/
+
+# Explicitly ignore contract build outputs
+lib/contracts/artifacts/
+lib/contracts/cache/
+
+# Hardhat build artifacts and cache
+artifacts/
+cache/
+# Hardhat local node
+hardhat_node/
+# Node modules
+node_modules/
+
+# API Server
+lib/api-server/package-lock.json
+
+# Environment files
+.env
+
+# Deployment outputs (contain contract addresses)
+deployments.json
+lib/contracts/deployments.json
+lib/contracts/scripts/deploy/deployments.json
+
+# Docker
+docker/
+.docker/
+*.dockerfile
+# Docker Compose override files
+docker-compose.override.yml
+# Docker local env files
+.env.docker
+# Docker volumes (if mounted locally)
+volumes/

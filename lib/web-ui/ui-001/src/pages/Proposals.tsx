@@ -5,6 +5,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { mockProposals } from '../mocks/proposals';
 import { mockTreasuries } from '../mocks/treasuries';
 import type { Treasury } from '../mocks/treasuries';
+import CreateProposalModal from '../components/CreateProposalModal';
+import { useDataMode } from '../contexts/DataModeContext';
 import '../App.css';
 
 interface Proposal {
@@ -18,6 +20,7 @@ interface Proposal {
   votesAgainst: number;
   hasVoted: boolean;
   voteType?: 'accept' | 'reject';
+  policyName?: string; // Name of the policy (e.g., "Join a Pool")
   contractAddress: string;
   treasuryId: number;
   ownerApproved?: boolean;
@@ -43,6 +46,13 @@ interface ProposalFormData {
   recipientAddress?: string;
   isSmartContract: boolean;
   contractAddress: string;
+  // New fields for policy contracts
+  endTime?: string; // For BuyBack period end time
+  perUserLimit?: string; // For BuyBack max per user
+  buybackPrice?: string; // For BuyBack price
+  capAmount?: string; // For Crowdsale cap
+  exchangeRatio?: string; // For Crowdsale ratio
+  votingType?: 'ratio' | 'totalSupply'; // For Lending rate parameter
 }
 
 interface TokenOption {
@@ -66,7 +76,14 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
     duration: '',
     recipientAddress: '',
     isSmartContract: false,
-    contractAddress: ''
+    contractAddress: '',
+    // Initialize new fields
+    endTime: '',
+    perUserLimit: '',
+    buybackPrice: '',
+    capAmount: '',
+    exchangeRatio: '',
+    votingType: 'ratio'
   });
 
   // Mock contract addresses - replace with actual contract addresses from your app
@@ -97,6 +114,7 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
     { display: 'Join a Pool', value: 'Liquidity Pool' },
     { display: 'Collateral Based', value: 'Collateral Based' },
     { display: 'Acquire Asset', value: 'Acquire Asset' },
+    { display: 'Token Sale', value: 'Token Sale' },
     { display: 'Treasury Buy Back', value: 'Treasury Buy Back' }
   ] as const;
 
@@ -122,7 +140,7 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
     
     if (!selectedType) return;
     
-    let joinPoolAddress = '';
+    let contractAddress = '';
     if (selectedType === 'Liquidity Pool') {
       try {
         const { deployJoinPool } = await import('../blockchain/joinPoolService');
@@ -130,10 +148,24 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
           const provider = new (window as any).ethers.providers.Web3Provider(window.ethereum);
           const signer = provider.getSigner();
           // TODO: Replace with actual constructor args for JoinPool
-          joinPoolAddress = await deployJoinPool(signer /*, ...args */);
+          contractAddress = await deployJoinPool(signer /*, ...args */);
         }
       } catch (err) {
         console.error('Failed to deploy JoinPool:', err);
+      }
+    } else if (selectedType === 'Token Sale') {
+      try {
+        const { deployCrowdsale } = await import('../blockchain/crowdsaleService');
+        if (typeof window !== 'undefined' && window.ethereum) {
+          const provider = new (window as any).ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          // TODO: Get treasury token and vault addresses from context/state
+          const treasuryTokenAddress = '0x0000000000000000000000000000000000000000'; // Mock
+          const treasuryVaultAddress = '0x0000000000000000000000000000000000000000'; // Mock
+          contractAddress = await deployCrowdsale(signer, treasuryTokenAddress, treasuryVaultAddress, formData.exchangeRatio || '1');
+        }
+      } catch (err) {
+        console.error('Failed to deploy Crowdsale:', err);
       }
     }
     setProposals((prev: Proposal[]) => {
@@ -147,7 +179,7 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
         votesFor: 0,
         votesAgainst: 0,
         hasVoted: false,
-        contractAddress: joinPoolAddress,
+        contractAddress: contractAddress,
         treasuryId: Number(treasuryId),
         formData: { ...formData }
       };
@@ -169,7 +201,14 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
       duration: '',
       recipientAddress: '',
       isSmartContract: false,
-      contractAddress: ''
+      contractAddress: '',
+      // Reset new fields
+      endTime: '',
+      perUserLimit: '',
+      buybackPrice: '',
+      capAmount: '',
+      exchangeRatio: '',
+      votingType: 'ratio'
     });
   };
 
@@ -187,7 +226,7 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
         {selectedType === 'Treasury Buy Back' ? (
           <>
             <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="amount" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Amount</label>
+              <label htmlFor="amount" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Total Swap Amount</label>
               <input
                 type="number"
                 id="amount"
@@ -197,7 +236,7 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
                 required
                 min="0"
                 step="any"
-                placeholder="Enter amount"
+                placeholder="Total tokens allowed to be swapped"
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -211,17 +250,16 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
               />
             </div>
             <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="priceRatio" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Price Ratio</label>
+              <label htmlFor="endTime" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>End Time (Unix Timestamp)</label>
               <input
                 type="number"
-                id="priceRatio"
-                name="priceRatio"
-                value={formData.priceRatio || ''}
+                id="endTime"
+                name="endTime"
+                value={formData.endTime || ''}
                 onChange={handleInputChange}
                 required
-                min="0"
-                step="0.0001"
-                placeholder="Enter price ratio"
+                min={Math.floor(Date.now() / 1000)}
+                placeholder="When the buyback period ends"
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -229,23 +267,23 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
                   border: '1px solid var(--border)',
                   fontSize: '1rem',
                   backgroundColor: 'var(--card-bg)',
-                  color: 'var(--text)'
+                  color: 'var(--text)',
+                  marginBottom: '1rem'
                 }}
               />
             </div>
             <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="voteApprovalPercentage" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Vote Approval Percentage</label>
+              <label htmlFor="perUserLimit" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Max Per User</label>
               <input
                 type="number"
-                id="voteApprovalPercentage"
-                name="voteApprovalPercentage"
-                value={formData.voteApprovalPercentage || ''}
+                id="perUserLimit"
+                name="perUserLimit"
+                value={formData.perUserLimit || ''}
                 onChange={handleInputChange}
                 required
                 min="0"
-                max="100"
-                step="0.01"
-                placeholder="Enter vote approval percentage"
+                step="any"
+                placeholder="Maximum tokens per user"
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -253,25 +291,104 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
                   border: '1px solid var(--border)',
                   fontSize: '1rem',
                   backgroundColor: 'var(--card-bg)',
-                  color: 'var(--text)'
+                  color: 'var(--text)',
+                  marginBottom: '1rem'
                 }}
               />
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="buybackPrice" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Buyback Price</label>
+              <input
+                type="number"
+                id="buybackPrice"
+                name="buybackPrice"
+                value={formData.buybackPrice || ''}
+                onChange={handleInputChange}
+                required
+                min="0"
+                step="any"
+                placeholder="Price for buyback tokens"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  fontSize: '1rem',
+                  backgroundColor: 'var(--card-bg)',
+                  color: 'var(--text)',
+                  marginBottom: '1rem'
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="tokenAddress" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Reward Token</label>
+              <select
+                id="tokenAddress"
+                name="tokenAddress"
+                value={formData.tokenAddress}
+                onChange={handleInputChange}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  fontSize: '1rem',
+                  backgroundColor: 'var(--card-bg)',
+                  color: 'var(--text)',
+                  marginBottom: '1rem'
+                }}
+              >
+                <option value="">Select reward token</option>
+                {tokenOptions.map((token) => (
+                  <option key={token.value} value={token.value}>
+                    {token.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </>
-        ) : selectedType === 'Acquire Asset' ? (
+        ) : selectedType === 'Token Sale' ? (
           <>
             <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="amount" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Amount</label>
+              <label htmlFor="tokenAddress" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Token for Sale</label>
+              <select
+                id="tokenAddress"
+                name="tokenAddress"
+                value={formData.tokenAddress}
+                onChange={handleInputChange}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  fontSize: '1rem',
+                  backgroundColor: 'var(--card-bg)',
+                  color: 'var(--text)',
+                  marginBottom: '1rem'
+                }}
+              >
+                <option value="">Select token</option>
+                {tokenOptions.map((token) => (
+                  <option key={token.value} value={token.value}>
+                    {token.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="capAmount" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Cap Amount</label>
               <input
                 type="number"
-                id="amount"
-                name="amount"
-                value={formData.amount}
+                id="capAmount"
+                name="capAmount"
+                value={formData.capAmount || ''}
                 onChange={handleInputChange}
                 required
                 min="0"
                 step="any"
-                placeholder="Enter amount"
+                placeholder="Maximum tokens for sale"
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -285,17 +402,17 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
               />
             </div>
             <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="contractAddress" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                Address to Send
-              </label>
+              <label htmlFor="exchangeRatio" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Exchange Ratio</label>
               <input
-                type="text"
-                id="contractAddress"
-                name="contractAddress"
-                value={formData.contractAddress}
+                type="number"
+                id="exchangeRatio"
+                name="exchangeRatio"
+                value={formData.exchangeRatio || ''}
                 onChange={handleInputChange}
                 required
-                placeholder="Enter contract address"
+                min="0"
+                step="any"
+                placeholder="Ratio for token exchange"
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -303,7 +420,8 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
                   border: '1px solid var(--border)',
                   fontSize: '1rem',
                   backgroundColor: 'var(--card-bg)',
-                  color: 'var(--text)'
+                  color: 'var(--text)',
+                  marginBottom: '1rem'
                 }}
               />
             </div>
@@ -426,6 +544,32 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
                   </select>
                 </div>
               )}
+              {selectedType === 'Collateral Based' && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <label htmlFor="votingType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Voting Type</label>
+                  <select
+                    id="votingType"
+                    name="votingType"
+                    value={formData.votingType}
+                    onChange={handleInputChange}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      fontSize: '1rem',
+                      marginBottom: '1rem',
+                      backgroundColor: 'var(--card-bg)',
+                      color: 'var(--text)'
+                    }}
+                  >
+                    <option value="">Select voting type</option>
+                    <option value="ratio">Ratio Based</option>
+                    <option value="totalSupply">Total Supply Based</option>
+                  </select>
+                </div>
+              )}
               <div style={{ marginBottom: '1rem' }}>
                 <label htmlFor="tokenAddress" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Token</label>
                 <select
@@ -529,28 +673,33 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh' }}>
         <div className="modal-header">
-          <h3>{selectedType ? `Create ${selectedType === 'Liquidity Pool' ? 'Join a Pool' : selectedType} Proposal` : 'Create New Proposal'}</h3>
+          <h3>{selectedType ? `Create ${selectedType === 'Liquidity Pool' ? 'Join a Pool' : selectedType === 'Token Sale' ? 'Token Sale' : selectedType} Proposal` : 'Create New Proposal'}</h3>
           <button className="close-button" onClick={onClose}>&times;</button>
         </div>
         
-        <div className="modal-body" style={{ padding: '1.5rem' }}>
+        <div className="modal-body" style={{ padding: '1.5rem', minHeight: '500px', maxHeight: '70vh', overflowY: 'auto' }}>
           {!selectedType ? (
             <div style={{ width: '100%' }}>
               <p style={{ margin: '0 0 1.5rem', color: 'var(--text-light)' }}>
                 Select proposal type:
               </p>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '0.75rem',
+                maxHeight: '300px',
+                overflowY: 'auto',
+                paddingRight: '0.5rem'
+              }}>
                 {proposalTypes.map(({ display, value }) => {
-                  const isJoinPool = value === 'Liquidity Pool';
                   return (
                     <button
                       key={value}
-                      className={`btn ${isJoinPool ? 'primary' : 'disabled'}`}
-                      onClick={() => isJoinPool && setSelectedType(value)}
-                      disabled={!isJoinPool}
+                      className="btn primary"
+                      onClick={() => setSelectedType(value)}
                       style={{
                         width: '100%',
                         padding: '0.75rem 1rem',
@@ -559,24 +708,10 @@ const ProposalTypeModal: React.FC<ProposalTypeModalProps> = ({
                         borderRadius: '8px',
                         fontSize: '0.95rem',
                         transition: 'all 0.2s ease',
-                        opacity: isJoinPool ? 1 : 0.6,
-                        cursor: isJoinPool ? 'pointer' : 'not-allowed',
-                        backgroundColor: isJoinPool ? 'var(--primary)' : 'var(--border)',
-                        color: isJoinPool ? 'white' : 'var(--text-light)',
                         border: 'none',
                       }}
                     >
                       {display}
-                      {!isJoinPool && (
-                        <span style={{
-                          fontSize: '0.8rem',
-                          marginLeft: '0.5rem',
-                          color: 'var(--text-light)',
-                          fontStyle: 'italic'
-                        }}>
-                          (Coming Soon)
-                        </span>
-                      )}
                     </button>
                   );
                 })}
@@ -968,6 +1103,7 @@ const ProposalModal: React.FC<ProposalModalProps> = ({ proposal, onClose, onVote
 const Proposals: React.FC = () => {
   const { treasuryId } = useParams<{ treasuryId: string }>();
   const navigate = useNavigate();
+  const { useLiveData } = useDataMode();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showVotedOnly, setShowVotedOnly] = useState(false);
@@ -1007,22 +1143,23 @@ const Proposals: React.FC = () => {
       voteType: (p as any).voteType || undefined,
       formData: (p as any).formData || undefined
     }));
-    fetch(`http://localhost:4000/api/treasuries/${treasuryId}/proposals`)
-      .then(res => res.json())
-      .then(apiProposals => {
-        // Merge backend proposals with normalized mockProposals (avoid duplicates by id)
-        const merged = [donateProposal, ...normalizedMockProposals];
-        apiProposals.forEach((apiProposal: Proposal) => {
-          if (!merged.some(m => m.id === apiProposal.id)) {
-            merged.push(apiProposal);
-          }
-        });
-        setProposals(merged);
-      })
-      .catch(() => setProposals([donateProposal, ...normalizedMockProposals])); // fallback to mock if backend fails
-  }, [treasuryId, donateProposal]);
+
+    if (useLiveData) {
+      fetch(`http://localhost:4000/api/treasuries/${treasuryId}/proposals`)
+        .then(res => res.json())
+        .then(apiProposals => {
+          // Use only API proposals when live data is enabled
+          setProposals([donateProposal, ...apiProposals]);
+        })
+        .catch(() => setProposals([donateProposal])); // fallback to only donate proposal if backend fails
+    } else {
+      // Use only mock data when live data is disabled
+      setProposals([donateProposal, ...normalizedMockProposals]);
+    }
+  }, [treasuryId, donateProposal, useLiveData]);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   const [isProposalTypeModalOpen, setIsProposalTypeModalOpen] = useState(false);
+  const [showCreateProposalModal, setShowCreateProposalModal] = useState(false);
   
   // Initialize proposals with donateProposal and enhancedProposals
   useEffect(() => {
@@ -1124,12 +1261,30 @@ const Proposals: React.FC = () => {
   };
 
   const openProposalTypeModal = useCallback(() => {
-    setIsProposalTypeModalOpen(true);
+    setShowCreateProposalModal(true);
   }, []);
 
   const closeProposalTypeModal = useCallback(() => {
     setIsProposalTypeModalOpen(false);
   }, []);
+
+  const handleCreateProposal = async (proposalData: {
+    type: string;
+    description: string;
+    amount?: string;
+    receiver?: string;
+    tokenAddress?: string;
+    poolAddress?: string;
+    votingType: 'ratio' | 'totalSupply';
+  }): Promise<void> => {
+    try {
+      console.log('Created new proposal:', proposalData);
+      setShowCreateProposalModal(false);
+    } catch (error) {
+      console.error('Failed to create proposal:', error);
+      throw error;
+    }
+  };
 
   const handleProposalTypeSelect = useCallback((type: string, formData?: ProposalFormData) => {
     if (formData) {
@@ -1156,6 +1311,7 @@ const Proposals: React.FC = () => {
           body: JSON.stringify({
             title: newProposal.title,
             description: newProposal.description,
+            policyName: type, // Save the policy type (e.g., "Join a Pool")
             contractAddress: newProposal.contractAddress,
             treasuryId: newProposal.treasuryId,
             // Add any other fields your backend expects
@@ -1399,6 +1555,16 @@ const Proposals: React.FC = () => {
             treasuryId={treasuryId}
             setProposals={setProposals}
           />
+          {treasury && (
+            <CreateProposalModal
+              isOpen={showCreateProposalModal}
+              treasuryAddress={treasury.contractAddress}
+              treasuryName={treasury.treasuryName}
+              lendingContractAddress={treasury.lendingContractAddress}
+              onClose={() => setShowCreateProposalModal(false)}
+              onCreateProposal={handleCreateProposal}
+            />
+          )}
         </div>
         
         {/* Status Descriptors */}

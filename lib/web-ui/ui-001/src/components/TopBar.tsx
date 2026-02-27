@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import WalletModal from './WalletModal';
+import DataModeSwitch from './DataModeSwitch';
 import '../App.css';
 
 declare global {
@@ -183,12 +184,14 @@ const TopBar = () => {
           </div>
           
           <div className="nav-actions" ref={dropdownRef}>
+            <DataModeSwitch />
             <button 
-              className={`wallet-button ${isConnected ? 'connected' : ''}`}
+              className={`wallet-button ${isConnected ? 'connected' : 'disconnected'}`}
               onClick={handleConnectClick}
               aria-label={isConnected ? 'Connected wallet' : 'Connect wallet'}
               aria-expanded={showWalletDropdown}
             >
+              <span className="status-dot"></span>
               {isConnected ? (
                 <span className="wallet-address">
                   {formatAddress(walletAddress)}

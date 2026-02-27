@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { mockTreasuries } from '../mocks/treasuries';
 import type { Treasury } from '../mocks/treasuries';
 import CreateTreasuryModal from '../components/CreateTreasuryModal';
 import JoinTreasuryModal from '../components/JoinTreasuryModal';
+import CreateProposalModal from '../components/CreateProposalModal';
+import { Web3Provider } from '@ethersproject/providers';
+import { getTokenSupply, getTreasuryTokenAddress, getTokenDetails } from '../utils/tokenUtils';
+import TreasuryVaultABI from '../abis/TreasuryVault.json';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ethers } from 'ethers';
+import { useDataMode } from '../contexts/DataModeContext';
 import styles from './FindTreasuries.module.css';
 
 // Extend the Treasury type to include additional properties
@@ -20,6 +25,7 @@ interface TreasuryModalProps {
   treasury: Treasury | null;
   onClose: () => void;
   onJoin: (amount: string) => Promise<number>;
+  onCreateProposal: () => void;
 }
 
 const copyToClipboard = (text: string) => {
@@ -30,13 +36,62 @@ const formatAddress = (address: string) => {
   return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
 };
 
-const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin }) => {
+const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin, onCreateProposal }) => {
   const [currentUserIndex, setCurrentUserIndex] = useState(0);
+  const [tokenDetails, setTokenDetails] = useState<{
+    name: string;
+    symbol: string;
+    totalSupply: string;
+    owner: string;
+    tokenAddress: string;
+  }>({
+    name: '',
+    symbol: '',
+    totalSupply: '0',
+    owner: '',
+    tokenAddress: ''
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  useEffect(() => {
+    const fetchTokenDetails = async () => {
+      if (!treasury?.contractAddress) return;
+      
+      try {
+        setIsLoading(true);
+        // @ts-ignore - ethereum is injected by the wallet
+        const provider = new Web3Provider(window.ethereum);
+        
+        // Get the token address from the treasury vault
+        const tokenAddress = await getTreasuryTokenAddress(treasury.contractAddress, provider);
+        
+        if (tokenAddress) {
+          // Get token details from the TreasuryToken contract
+          const details = await getTokenDetails(tokenAddress, provider);
+          
+          setTokenDetails({
+            ...details,
+            tokenAddress
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch token details:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchTokenDetails();
+  }, [treasury?.contractAddress]);
   
   if (!treasury) return null;
 
   const treasuryBalance = parseFloat(treasury.treasuryTokenBalance.split(' ')[0].replace(/,/g, '')) || 0;
   const proposalBalance = parseFloat(treasury.proposalTokenBalance.split(' ')[0].replace(/,/g, '')) || 0;
+  
+  // Extract token symbol and name from treasury data
+  const tokenSymbol = tokenDetails.symbol || treasury.tokenSymbol || 'JIM';
+  const tokenName = tokenDetails.name || treasury.treasuryName || 'Jimster';
   
   const handlePrevUser = () => {
     setCurrentUserIndex(prev => Math.max(0, prev - 1));
@@ -47,6 +102,24 @@ const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin
   };
   
   const currentUser = treasury.authorizedUsers[currentUserIndex];
+  
+  // Format address with copy button
+  const renderAddress = (address: string) => (
+    <div className={styles.addressWithCopy}>
+      <span className={styles.truncate}>{address}</span>
+      <ContentCopyIcon 
+        className={styles.copyIcon}
+        onClick={() => copyToClipboard(address)}
+        sx={{ 
+          fontSize: 16, 
+          cursor: 'pointer',
+          color: 'var(--text-light)',
+          '&:hover': { color: 'var(--primary)' },
+          marginLeft: '0.5rem'
+        }}
+      />
+    </div>
+  );
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -57,49 +130,78 @@ const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin
         </div>
         <div className={styles.modalBody}>
           <div className={styles.treasuryDetail}>
-            <div className={`${styles.treasuryIcon} ${styles.large}`}>
-              {treasury.tokenSymbol.substring(0, 2).toUpperCase()}
-            </div>
-            <h2 className={styles.treasuryName}>{treasury.tokenSymbol} Treasury</h2>
+            <h2 className={styles.treasuryName}>{treasury.treasuryName || 'Treasury'}</h2>
             
-            <div className={styles.detailItem}>
-              <span className={styles.detailLabel}>Total Value Locked</span>
-              <span className={styles.detailValue}>{treasury.totalValueLocked}</span>
-            </div>
-            
-            <div className={styles.detailItem}>
-              <span className={styles.detailLabel}>Contract</span>
-              <div className={styles.detailValue}>
-                <span className={styles.truncate}>{formatAddress(treasury.contractAddress)}</span>
-                <ContentCopyIcon 
-                  className={styles.copyIcon}
-                  onClick={() => copyToClipboard(treasury.contractAddress)}
-                  sx={{ 
-                    fontSize: 16, 
-                    cursor: 'pointer',
-                    color: 'var(--text-light)',
-                    '&:hover': { color: 'var(--primary)' },
-                    marginLeft: '0.5rem'
-                  }}
-                />
+            {/* Token Details Section */}
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}> Treasury Details </h3>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Treasury Name:</span>
+                <span className={styles.detailValue}>{tokenName}</span>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Treasury Token Symbol:</span>
+                <span className={styles.detailValue}>{tokenSymbol}</span>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Current Supply:</span>
+                <span className={styles.detailValue}>
+                  {isLoading ? 'Loading...' : parseInt(tokenDetails.totalSupply).toLocaleString()}
+                </span>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Owner:</span>
+                <div className={styles.detailValue}>
+                  {renderAddress(tokenDetails.owner || treasury.ownerAddress)}
+                </div>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Token Address:</span>
+                <div className={styles.detailValue}>
+                  {renderAddress(tokenDetails.tokenAddress)}
+                </div>
               </div>
             </div>
             
-            <div className={styles.detailItem}>
-              <span className={styles.detailLabel}>Owner</span>
-              <div className={styles.detailValue}>
-                <span className={styles.truncate}>{formatAddress(treasury.ownerAddress)}</span>
-                <ContentCopyIcon 
-                  className={styles.copyIcon}
-                  onClick={() => copyToClipboard(treasury.ownerAddress)}
-                  sx={{ 
-                    fontSize: 16, 
-                    cursor: 'pointer',
-                    color: 'var(--text-light)',
-                    '&:hover': { color: 'var(--primary)' },
-                    marginLeft: '0.5rem'
-                  }}
-                />
+            {/* Vault Details Section */}
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}> Reserve Details </h3>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Token Address:</span>
+                <div className={styles.detailValue}>
+                  {renderAddress(treasury.contractAddress)}
+                </div>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Reserve Token Name:</span>
+                <span className={styles.detailValue}>{treasury.treasuryName}</span>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Reserve Token Symbol:</span>
+                <span className={styles.detailValue}>{tokenSymbol}</span>
+              </div>
+            </div>
+            
+            {/* Token-Vault Connection Section */}
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}> Treasury Stats </h3>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Supported Tokens:</span>
+                <span className={styles.detailValue}>
+                  {isLoading ? 'Loading...' : treasuryBalance.toLocaleString()}
+                </span>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Tokens in Treasury:</span>
+                <span className={styles.detailValue}>
+                  {isLoading ? 'Loading...' : proposalBalance.toLocaleString()}
+                </span>
+              </div>
+              <div className={styles.detailItem}>
+                <span className={styles.detailLabel}>Tokens Withdrawn:</span>
+                <span className={styles.detailValue}>
+                  {isLoading ? 'Loading...' : parseInt(tokenDetails.totalSupply).toLocaleString()}
+                </span>
               </div>
             </div>
             
@@ -183,7 +285,7 @@ const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin
             
             <div className={styles.tokenBalance}>
               <div className={styles.tokenInfo}>
-                <span className={styles.detailLabel}>Proposal Token</span>
+                <span className={styles.detailLabel}>Reserve Token</span>
                 <span className={styles.tokenAmount}>{treasury.proposalTokenBalance}</span>
               </div>
               <div className={styles.tokenActions}>
@@ -207,7 +309,7 @@ const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin
               {treasury.isJoined && (
                 <button 
                   className={`${styles.button} ${styles.buttonPrimary}`}
-                  onClick={() => onClose()}
+                  onClick={onCreateProposal}
                 >
                   Create Proposal
                 </button>
@@ -247,20 +349,38 @@ const TreasuryModal: React.FC<TreasuryModalProps> = ({ treasury, onClose, onJoin
 
 const FindTreasuries: React.FC = () => {
   const navigate = useNavigate();
+  const { useLiveData } = useDataMode();
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [treasuries, setTreasuries] = useState<ExtendedTreasury[]>(
-    mockTreasuries.map(t => ({
-      ...t,
-      memberCount: t.totalMembers || 1,
-      totalMembers: t.totalMembers || 1
-    } as ExtendedTreasury))
-  );
+  const [treasuries, setTreasuries] = useState<ExtendedTreasury[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'joined'>('all');
   const [showModal, setShowModal] = useState<boolean>(false);
   const [selectedTreasury, setSelectedTreasury] = useState<ExtendedTreasury | null>(null);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showJoinModal, setShowJoinModal] = useState<boolean>(false);
+  const [showCreateProposalModal, setShowCreateProposalModal] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMorePages, setHasMorePages] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+
+  // Initialize treasuries based on data mode
+  useEffect(() => {
+    if (!useLiveData) {
+      setTreasuries(mockTreasuries.map(t => ({
+        ...t,
+        memberCount: t.totalMembers || 1,
+        totalMembers: t.totalMembers || 1
+      } as ExtendedTreasury)));
+      setIsLoading(false);
+      setHasMorePages(false);
+      setCurrentPage(1);
+    } else {
+      setTreasuries([]);
+      setCurrentPage(1);
+      setHasMorePages(true);
+      fetchTreasuries();
+    }
+  }, [useLiveData]);
 
   // Handle info click
   const handleInfoClick = (treasury: ExtendedTreasury) => {
@@ -309,7 +429,35 @@ const FindTreasuries: React.FC = () => {
     }
   };
 
-  // Filter treasuries based on search term and active tab
+  // Handle creating a proposal
+  const handleCreateProposal = async (proposalData: {
+    type: string;
+    description: string;
+    amount?: string;
+    receiver?: string;
+    tokenAddress?: string;
+    poolAddress?: string;
+    votingType: 'ratio' | 'totalSupply';
+  }): Promise<void> => {
+    if (!selectedTreasury) return;
+
+    setIsLoading(true);
+    try {
+      // The proposal creation is now handled in the CreateProposalModal
+      // This callback is just for any additional UI updates
+      console.log('Proposal created successfully:', proposalData);
+
+      // Close the modal
+      setShowCreateProposalModal(false);
+    } catch (error) {
+      console.error('Failed to create proposal:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filter and sort treasuries
   const filteredTreasuries = useMemo(() => {
     let result = [...treasuries];
     
@@ -328,48 +476,103 @@ const FindTreasuries: React.FC = () => {
       result = result.filter(treasury => treasury.isJoined);
     }
     
-    return result;
+    // Sort treasuries - zJimster first, then by name
+    return result.sort((a, b) => {
+      // zJimster treasury always comes first
+      if (a.treasuryName === 'zJimster Treasury') return -1;
+      if (b.treasuryName === 'zJimster Treasury') return 1;
+      
+      // Then sort by name
+      return a.treasuryName.localeCompare(b.treasuryName);
+    });
   }, [treasuries, searchTerm, activeTab]);
 
-  // Fetch treasuries from backend API and merge with mock data
-  useEffect(() => {
-    const fetchTreasuries = async () => {
-      try {
-        const response = await fetch('http://localhost:4000/api/treasuries');
-        const apiTreasuries: Treasury[] = await response.json();
-        
-        // Merge backend treasuries with mockTreasuries (avoid duplicates by contractAddress)
-        const merged: ExtendedTreasury[] = [...mockTreasuries.map(t => ({
-          ...t,
-          memberCount: t.totalMembers || 1,
-          totalMembers: t.totalMembers || 1
-        }))];
-        
-        apiTreasuries.forEach((apiTreasury) => {
-          if (!merged.some(m => m.contractAddress === apiTreasury.contractAddress)) {
-            merged.push({
-              ...apiTreasury,
-              memberCount: apiTreasury.totalMembers || 1,
-              totalMembers: apiTreasury.totalMembers || 1
-            } as ExtendedTreasury);
-          }
-        });
-        
-        setTreasuries(merged);
-      } catch (error) {
-        console.error('Failed to fetch treasuries:', error);
-        // Fallback to mock data with memberCount
-        setTreasuries(mockTreasuries.map(t => ({
-          ...t,
-          memberCount: t.totalMembers || 1,
-          totalMembers: t.totalMembers || 1
-        } as ExtendedTreasury)));
+  // Fetch treasuries from the deployed-treasuries API
+  const fetchTreasuries = async (page: number = 1, append: boolean = false) => {
+    // If not using live data, skip the API call
+    if (!useLiveData) {
+      if (!append) {
+        setIsLoading(false);
+        setHasMorePages(false);
+      } else {
+        setLoadingMore(false);
       }
-    };
-    
-    fetchTreasuries();
-  }, []);
-  
+      return;
+    }
+
+    try {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      // Fetch from our new deployed-treasuries endpoint with pagination
+      const response = await fetch(`http://localhost:4000/api/deployed-treasuries?page=${page}&limit=10`);
+      const data = await response.json();
+      
+      // Transform the data to match the Treasury interface
+      const transformedTreasuries: ExtendedTreasury[] = await Promise.all(data.treasuries.map(async (treasury: any, index: number) => {
+        let treasuryName = treasury.name; // Default to API name
+        
+        // Try to get treasury name from smart contract
+        try {
+          if (window.ethereum) {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const contract = new ethers.Contract(treasury.vaultAddress, TreasuryVaultABI.abi, provider);
+            const contractName = await contract.treasuryName();
+            if (contractName && contractName.trim()) {
+              treasuryName = contractName;
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch treasury name from contract ${treasury.vaultAddress}:`, error);
+          // Keep the API name as fallback
+        }
+        
+        return {
+          id: (page - 1) * 10 + index + 1, // Generate a unique ID based on page
+          treasuryName,
+          contractAddress: treasury.vaultAddress, // Using vault address as the main contract address
+          tokenSymbol: treasury.tokenSymbol,
+          proposalTokenSymbol: `p${treasury.tokenSymbol}`,
+          totalValueLocked: '$0.00', // Will be updated from the blockchain
+          apy: '0.0%',
+          isJoined: false, // Will be updated based on user's membership
+          openProposals: 0, // Will be updated from the blockchain
+          closedProposals: 0, // Will be updated from the blockchain
+          totalMembers: 1, // Will be updated from the blockchain
+          memberCount: 1, // Will be updated from the blockchain
+          yourStake: '0.0', // Will be updated from the blockchain
+          ownerAddress: treasury.ownerAddress,
+          authorizedUsers: [], // Will be updated from the blockchain
+          treasuryTokenBalance: '0.0', // Will be updated from the blockchain
+          proposalTokenBalance: '0.0' // Will be updated from the blockchain
+        } as ExtendedTreasury;
+      }));
+      
+      if (append) {
+        setTreasuries(prev => [...prev, ...transformedTreasuries]);
+        setHasMorePages(data.pagination.hasNextPage);
+        setCurrentPage(page);
+      } else {
+        setTreasuries(transformedTreasuries);
+        setHasMorePages(data.pagination.hasNextPage);
+        setCurrentPage(1);
+      }
+    } catch (error) {
+      console.error('Failed to fetch deployed treasuries:', error);
+      // In live mode, don't fallback to mock data - show empty list
+      if (!append) {
+        setTreasuries([]);
+        setHasMorePages(false);
+      }
+    } finally {
+      setIsLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
   // Handle hash-based tab selection
   useEffect(() => {
     const handleHashChange = () => {
@@ -430,12 +633,8 @@ const FindTreasuries: React.FC = () => {
         {filteredTreasuries.map((treasury) => (
           <div key={treasury.id} className={styles.treasuryCard}>
             <div className={styles.treasuryHeader}>
-              <div className={styles.treasuryIcon}>
-                {treasury.tokenSymbol.substring(0, 2).toUpperCase()}
-              </div>
               <div className={styles.treasuryInfo}>
                 <h3>{treasury.treasuryName}</h3>
-                <p>{treasury.tokenSymbol}</p>
               </div>
               <div className={styles.treasuryValue}>
                 {treasury.totalValueLocked}
@@ -465,24 +664,31 @@ const FindTreasuries: React.FC = () => {
                 >
                   Join
                 </button>
-              ) : (
-                <Link 
-                  to={`/treasuries/${treasury.id}`}
-                  className={styles.viewButton}
-                >
-                  View
-                </Link>
-              )}
+              ) : null}
             </div>
           </div>
         ))}
       </div>
+
+      {/* Load More Button */}
+      {hasMorePages && (
+        <div className={styles.loadMoreContainer}>
+          <button
+            className={styles.loadMoreButton}
+            onClick={() => fetchTreasuries(currentPage + 1, true)}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading...' : 'Load More Treasuries'}
+          </button>
+        </div>
+      )}
 
       {showModal && selectedTreasury && (
         <TreasuryModal
           treasury={selectedTreasury}
           onClose={() => setShowModal(false)}
           onJoin={handleJoinTreasury}
+          onCreateProposal={() => setShowCreateProposalModal(true)}
         />
       )}
 
@@ -536,6 +742,17 @@ const FindTreasuries: React.FC = () => {
             
             return result;
           }}
+        />
+      )}
+
+      {showCreateProposalModal && selectedTreasury && (
+        <CreateProposalModal
+          isOpen={showCreateProposalModal}
+          treasuryAddress={selectedTreasury.contractAddress}
+          treasuryName={selectedTreasury.treasuryName}
+          lendingContractAddress={selectedTreasury.lendingContractAddress}
+          onClose={() => setShowCreateProposalModal(false)}
+          onCreateProposal={handleCreateProposal}
         />
       )}
     </div>

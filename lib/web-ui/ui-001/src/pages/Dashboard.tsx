@@ -5,12 +5,11 @@ import { deployTreasuryToken } from '../blockchain/treasuryTokenService';
 import { deployReserveVault } from '../blockchain/treasuryVaultService';
 import { deployCrowdsale } from '../blockchain/crowdsaleService';
 import CreateTreasuryModal from '../components/CreateTreasuryModal';
-import CrowdsaleModal from '../components/CrowdsaleModal';
 import { mockTreasuries } from '../mocks/treasuries';
 import type { Treasury } from '../mocks/treasuries';
 import { mockProposals, Proposal } from '../mocks/proposals';
-import { mockChainlinkSubscriptions, ChainlinkSubscription } from '../mocks/chainlinkSubscriptions';
-import ChainlinkSubscriptions from '../components/ChainlinkSubscriptions';
+import { useDataMode } from '../contexts/DataModeContext';
+import { getTokenBalance, isTreasuryToken, getTreasuryName, getTokenSupply } from '../utils/tokenUtils';
 
 interface Notification {
   id: number;
@@ -32,72 +31,359 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [showPreferences, setShowPreferences] = useState(false);
   const [showCreateTreasuryModal, setShowCreateTreasuryModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showCrowdsaleModal, setShowCrowdsaleModal] = useState(false);
-  const [subscriptions, setSubscriptions] = useState<ChainlinkSubscription[]>(mockChainlinkSubscriptions);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [deployedContracts, setDeployedContracts] = useState<{
     treasuryTokenAddress: string;
     treasuryVaultAddress: string;
     treasuryTokenSymbol: string;
     treasuryVaultSymbol: string;
   } | null>(null);
-  const [treasuries, setTreasuries] = useState<Treasury[]>(mockTreasuries);
-  // Add endDate to mock proposals
-  const [proposals] = useState<Proposal[]>([
-    ...mockProposals,
+  const [treasuries, setTreasuries] = useState<Treasury[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { useLiveData } = useDataMode();
+  const [userTreasuries, setUserTreasuries] = useState<Array<{
+    name: string;
+    vaultAddress: string;
+    tokenAddress: string;
+    tokenSymbol: string;
+    userBalance: string;
+    totalSupply: string;
+  }>>([]);
+
+  const [tokenBalances, setTokenBalances] = useState<{name: string, symbol: string, balance: string}[]>([]);
+
+  // Mock token balances for development
+  const mockTokenBalances = [
+    { name: 'Ethereum', symbol: 'ETH', balance: '1.234' },
+    { name: 'USD Coin', symbol: 'USDC', balance: '500.00' },
+    { name: 'Dai Stablecoin', symbol: 'DAI', balance: '250.50' }
+  ];
+
+  // Mock user treasuries for development
+  const mockUserTreasuries = [
     {
-      id: 101,
-      treasuryId: 1,
-      title: 'Add New Liquidity Pool',
-      description: 'Proposal to add a new liquidity pool for DAI stablecoin',
-      createdDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-      closedDate: null,
-      status: 'active',
-      votesFor: 3500,
-      votesAgainst: 1200,
-      hasVoted: true,
-      voteType: 'accept',
-      ownerApproved: true
+      name: 'Tech Startup Fund',
+      vaultAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      tokenAddress: '0x8ba1f109551bD4328030126452617686A9c1D4f4',
+      tokenSymbol: 'TSF',
+      userBalance: '1250.5000',
+      totalSupply: '50000.00' // USDC balance in vault
     },
     {
-      id: 102,
-      treasuryId: 2,
-      title: 'Update Protocol Fee',
-      description: 'Proposal to reduce protocol fee from 0.3% to 0.25%',
-      createdDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
-      closedDate: null,
-      status: 'active',
-      votesFor: 4200,
-      votesAgainst: 3800,
-      hasVoted: false,
-      voteType: 'accept',
-      ownerApproved: true
+      name: 'Green Energy Initiative',
+      vaultAddress: '0x9c2d45Ee6634C0532925a3b844Bc454e4438f44f',
+      tokenAddress: '0x1ba2f109551bD4328030126452617686A9c1D4f5',
+      tokenSymbol: 'GEI',
+      userBalance: '750.2500',
+      totalSupply: '25000.00' // USDC balance in vault
+    },
+    {
+      name: 'Community DAO Treasury',
+      vaultAddress: '0x3d4e35Cc6634C0532925a3b844Bc454e4438f44g',
+      tokenAddress: '0x2ca3f109551bD4328030126452617686A9c1D4f6',
+      tokenSymbol: 'CDT',
+      userBalance: '320.7500',
+      totalSupply: '15000.00' // USDC balance in vault
     }
-  ]);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: 'New Proposal',
-      message: 'Voting has started on Proposal #123',
-      time: '2 hours ago',
-      read: false
-    },
-    {
-      id: 2,
-      title: 'System Update',
-      message: 'New features available in your dashboard',
-      time: '1 day ago',
-      read: false
-    },
-    {
-      id: 3,
-      title: 'Reminder',
-      message: 'Don\'t forget to vote on the active proposals',
-      time: '2 days ago',
-      read: true
+  ];
+
+  // Common token addresses on Ethereum mainnet (you may want to make this configurable)
+  const commonTokens = [
+    { name: 'Ethereum', symbol: 'ETH', address: '0x0000000000000000000000000000000000000000' }, // Native ETH
+    { name: 'USD Coin', symbol: 'USDC', address: '0xA0b86a33E6441e88C5F2712C3E9b74F5b8b6b8b8' }, // USDC
+    { name: 'Dai Stablecoin', symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' } // DAI
+  ];
+
+  // Fetch real token balances from wallet
+  const fetchTokenBalances = async () => {
+    if (!window.ethereum || !isWalletConnected) {
+      return [];
     }
-  ]);
+
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const accounts = await provider.listAccounts();
+      const userAddress = accounts[0];
+
+      const balances = await Promise.all(
+        commonTokens.map(async (token) => {
+          try {
+            let balance: string;
+            
+            if (token.address === '0x0000000000000000000000000000000000000000') {
+              // Native ETH balance
+              const ethBalance = await provider.getBalance(userAddress);
+              balance = ethers.utils.formatEther(ethBalance);
+            } else {
+              // ERC20 token balance
+              balance = await getTokenBalance(token.address, userAddress, provider);
+              // Format the balance (assuming 18 decimals for simplicity)
+              balance = ethers.utils.formatUnits(balance, 18);
+            }
+
+            return {
+              name: token.name,
+              symbol: token.symbol,
+              balance: parseFloat(balance).toFixed(4)
+            };
+          } catch (error) {
+            console.warn(`Failed to fetch balance for ${token.symbol}:`, error);
+            return {
+              name: token.name,
+              symbol: token.symbol,
+              balance: '0.0000'
+            };
+          }
+        })
+      );
+
+      return balances;
+    } catch (error) {
+      console.error('Failed to fetch token balances:', error);
+      return [];
+    }
+  };
+
+  // Check wallet connection
+  useEffect(() => {
+    const checkWalletConnection = async () => {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+          const connected = accounts.length > 0;
+          setIsWalletConnected(connected);
+
+          // Set mock data only if not connected
+          if (!connected) {
+            setTreasuries(mockTreasuries);
+            setProposals([
+              ...mockProposals,
+              {
+                id: 101,
+                treasuryId: 1,
+                title: 'Add New Liquidity Pool',
+                description: 'Proposal to add a new liquidity pool for DAI stablecoin',
+                createdDate: new Date().toISOString(),
+                endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                closedDate: null,
+                status: 'active',
+                votesFor: 3500,
+                votesAgainst: 1200,
+                hasVoted: true,
+                voteType: 'accept',
+                ownerApproved: true
+              },
+              {
+                id: 102,
+                treasuryId: 2,
+                title: 'Update Protocol Fee',
+                description: 'Proposal to reduce protocol fee from 0.3% to 0.25%',
+                createdDate: new Date().toISOString(),
+                endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                closedDate: null,
+                status: 'active',
+                votesFor: 4200,
+                votesAgainst: 3800,
+                hasVoted: false,
+                voteType: 'accept',
+                ownerApproved: true
+              }
+            ]);
+            setNotifications([
+              {
+                id: 1,
+                title: 'New Proposal',
+                message: 'Voting has started on Proposal #123',
+                time: '2 hours ago',
+                read: false
+              },
+              {
+                id: 2,
+                title: 'System Update',
+                message: 'New features available in your dashboard',
+                time: '1 day ago',
+                read: false
+              },
+              {
+                id: 3,
+                title: 'Reminder',
+                message: 'Don\'t forget to vote on the active proposals',
+                time: '2 days ago',
+                read: true
+              }
+            ]);
+          } else {
+            // Clear mock data when connected
+            setTreasuries([]);
+            setProposals([]);
+            setNotifications([]);
+          }
+        } catch (error) {
+          console.error('Error checking wallet connection:', error);
+        }
+      }
+    };
+
+    checkWalletConnection();
+
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts: string[]) => {
+        const connected = accounts.length > 0;
+        setIsWalletConnected(connected);
+        if (!connected) {
+          setTreasuries(mockTreasuries);
+          setProposals(mockProposals);
+          setNotifications([
+            {
+              id: 1,
+              title: 'New Proposal',
+              message: 'Voting has started on Proposal #123',
+              time: '2 hours ago',
+              read: false
+            },
+            {
+              id: 2,
+              title: 'System Update',
+              message: 'New features available in your dashboard',
+              time: '1 day ago',
+              read: false
+            },
+            {
+              id: 3,
+              title: 'Reminder',
+              message: 'Don\'t forget to vote on the active proposals',
+              time: '2 days ago',
+              read: true
+            }
+          ]);
+        } else {
+          setTreasuries([]);
+          setProposals([]);
+          setNotifications([]);
+        }
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', checkWalletConnection);
+      }
+    };
+  }, []);
+
+  // Update token balances based on data mode and wallet connection
+  useEffect(() => {
+    const updateTokenBalances = async () => {
+      if (useLiveData && isWalletConnected) {
+        // Fetch real token balances from wallet
+        const realBalances = await fetchTokenBalances();
+        setTokenBalances(realBalances.length > 0 ? realBalances : mockTokenBalances);
+      } else {
+        // Use mock data
+        setTokenBalances(mockTokenBalances);
+      }
+    };
+
+    updateTokenBalances();
+  }, [useLiveData, isWalletConnected]);
+
+  // Fetch user treasuries (treasuries where user has tokens)
+  useEffect(() => {
+    const fetchUserTreasuries = async () => {
+      if (!useLiveData) {
+        // In mock mode, show mock user treasuries
+        setUserTreasuries(mockUserTreasuries);
+        return;
+      }
+
+      if (!isWalletConnected || !window.ethereum) {
+        // No wallet connected, show empty
+        setUserTreasuries([]);
+        return;
+      }
+
+      try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const accounts = await provider.listAccounts();
+        const userAddress = accounts[0];
+
+        // Fetch USDC contract address
+        const usdcResponse = await fetch('http://localhost:4000/api/contract-addresses/Ethereum%20Sepolia(USDC)');
+        const usdcData = await usdcResponse.json();
+        const usdcAddress = usdcData.contractAddress?.address;
+
+        if (!usdcAddress) {
+          console.warn('USDC contract address not found');
+          setUserTreasuries([]);
+          return;
+        }
+
+        // Fetch deployed treasuries from API
+        const response = await fetch('http://localhost:4000/api/deployed-treasuries?page=1&limit=50');
+        const data = await response.json();
+
+        // Filter treasuries where user has tokens
+        const userTreasuriesData = [];
+
+        for (const treasury of data.treasuries) {
+          try {
+            // Check if the token is a treasury token
+            const isTreasuryTokenResult = await isTreasuryToken(treasury.tokenAddress, provider);
+            
+            if (isTreasuryTokenResult) {
+              // Check user's balance
+              const balance = await getTokenBalance(treasury.tokenAddress, userAddress, provider);
+              
+              if (parseFloat(balance) > 0) {
+                // Get vault address from token contract's treasuryName()
+                const vaultAddress = await getTreasuryName(treasury.tokenAddress, provider);
+                
+                if (vaultAddress && vaultAddress !== '0x0000000000000000000000000000000000000000') {
+                  // Get treasury display name from vault contract's treasuryName()
+                  let treasuryDisplayName = treasury.name; // fallback
+                  try {
+                    treasuryDisplayName = await getTreasuryName(vaultAddress, provider);
+                    if (!treasuryDisplayName || treasuryDisplayName === '0x0000000000000000000000000000000000000000') {
+                      treasuryDisplayName = treasury.name; // fallback to API name
+                    }
+                  } catch (error) {
+                    console.warn(`Could not get treasury name from vault ${vaultAddress}, using API name`);
+                  }
+                  
+                  // Get USDC balance of the vault
+                  const vaultUsdcBalance = await getTokenBalance(usdcAddress, vaultAddress, provider);
+                  
+                  // Format balance and USDC balance (USDC has 6 decimals)
+                  const formattedBalance = ethers.utils.formatUnits(balance, 18);
+                  const formattedUsdcBalance = ethers.utils.formatUnits(vaultUsdcBalance, 6);
+                  
+                  userTreasuriesData.push({
+                    name: treasuryDisplayName,
+                    vaultAddress: vaultAddress,
+                    tokenAddress: treasury.tokenAddress,
+                    tokenSymbol: treasury.tokenSymbol,
+                    userBalance: parseFloat(formattedBalance).toFixed(4),
+                    totalSupply: parseFloat(formattedUsdcBalance).toFixed(2)
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`Error checking treasury ${treasury.name}:`, error);
+          }
+        }
+
+        setUserTreasuries(userTreasuriesData);
+      } catch (error) {
+        console.error('Error fetching user treasuries:', error);
+        setUserTreasuries([]);
+      }
+    };
+
+    fetchUserTreasuries();
+  }, [useLiveData, isWalletConnected]);
 
   // Get accepted proposals that the user has voted on
   const acceptedProposals = useMemo(() => 
@@ -113,38 +399,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       })),
     [proposals]
   );
-
-  // Chainlink Subscription Handlers
-  const handleTopUp = (id: string) => {
-    // In a real app, this would open a modal to add more LINK
-    alert(`Topping up subscription ${id}`);
-  };
-
-  const handlePause = (id: string) => {
-    setSubscriptions(subs => 
-      subs.map(sub => 
-        sub.id === id ? { ...sub, status: 'paused' as const } : sub
-      )
-    );
-  };
-
-  const handleResume = (id: string) => {
-    setSubscriptions(subs => 
-      subs.map(sub => 
-        sub.id === id ? { ...sub, status: 'active' as const } : sub
-      )
-    );
-  };
-
-  const handleCancel = (id: string) => {
-    if (window.confirm('Are you sure you want to cancel this subscription? This action cannot be undone.')) {
-      setSubscriptions(subs => 
-        subs.map(sub => 
-          sub.id === id ? { ...sub, status: 'cancelled' as const } : sub
-        )
-      );
-    }
-  };
 
   const handleDeploy = async (deployParams: {
     name: string;
@@ -211,7 +465,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       };
       setTreasuries([...treasuries, newTreasury]);
       setDeployedContracts(deploymentData);
-      setShowCrowdsaleModal(true);
       setShowCreateTreasuryModal(false);
       setNotifications((prev: Notification[]) => [
         {
@@ -258,7 +511,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       ]);
       
       // Close the modal
-      setShowCrowdsaleModal(false);
     } catch (error) {
       console.error('Error launching crowdsale:', error);
       // Show error notification
@@ -327,8 +579,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="dashboard-grid">
           {/* Balance Card */}
           <div className="widget balance-card">
-            <h3>Total Balance</h3>
-            <div className="balance-amount">$0.00</div>
+            <h3>Wallet Tokens</h3>
+            <div className="token-list">
+              {useLiveData && !isWalletConnected ? (
+                <div className="token-item" style={{ justifyContent: 'center', fontStyle: 'italic', color: '#666' }}>
+                  Connect wallet to view token balances
+                </div>
+              ) : (
+                tokenBalances.map((token, index) => (
+                  <div key={index} className="token-item">
+                    <span className="token-name">{token.name} ({token.symbol})</span>
+                    <span className="token-balance">{token.balance}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
           
           {/* Quick Actions */}
@@ -357,37 +622,26 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           
-          {/* Chainlink Subscriptions */}
-          <div className="widget chainlink-subscriptions">
-            <h3>Chainlink Subscriptions</h3>
-            <ChainlinkSubscriptions 
-              subscriptions={subscriptions}
-              onTopUp={handleTopUp}
-              onPause={handlePause}
-              onResume={handleResume}
-              onCancel={handleCancel}
-            />
-          </div>
-          
-          {/* Recent Activity */}
-          <div className="widget recent-activity">
+          {/* Your Treasuries */}
+          <div className="widget your-treasuries">
             <style jsx>{`
-              .recent-activity .activity-list {
+              .your-treasuries .treasury-list {
                 margin-top: 1rem;
               }
               
-              .activity-item {
+              .treasury-item {
                 display: flex;
                 padding: 0.75rem 0;
                 border-bottom: 1px solid #edf2f7;
-                align-items: flex-start;
+                align-items: center;
+                min-width: 0; /* Allow flex items to shrink below content size */
               }
               
-              .activity-item:last-child {
+              .treasury-item:last-child {
                 border-bottom: none;
               }
               
-              .activity-icon {
+              .treasury-icon {
                 width: 2rem;
                 height: 2rem;
                 border-radius: 50%;
@@ -396,63 +650,46 @@ const Dashboard: React.FC<DashboardProps> = ({
                 justify-content: center;
                 margin-right: 0.75rem;
                 flex-shrink: 0;
+                background-color: #4f46e5;
                 color: white;
                 font-weight: bold;
+                font-size: 0.875rem;
               }
               
-              .activity-icon.deposit { background-color: #10b981; }
-              .activity-icon.withdrawal { background-color: #ef4444; }
-              .activity-icon.execution { background-color: #3b82f6; }
-              .activity-icon.status { background-color: #f59e0b; }
-              
-              .activity-details {
+              .treasury-details {
                 flex: 1;
                 min-width: 0;
+                overflow: hidden; /* Prevent overflow */
               }
               
-              .activity-title {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.25rem;
-                margin-bottom: 0.25rem;
-                font-size: 0.875rem;
-                color: #1a202c;
-              }
-              
-              .subscription-name {
+              .treasury-name {
                 font-weight: 600;
-                color: #4f46e5;
+                color: #1a202c;
+                margin-bottom: 0.25rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
               }
               
-              .event-details {
-                color: #4b5563;
-              }
-              
-              .activity-meta {
-                display: flex;
-                align-items: center;
-                gap: 0.75rem;
-                font-size: 0.75rem;
+              .treasury-address {
                 color: #6b7280;
+                font-size: 0.75rem;
+                font-family: monospace;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
               }
               
-              .activity-amount {
+              .treasury-balance {
                 font-weight: 500;
-              }
-              
-              .activity-amount.deposit {
                 color: #10b981;
+                font-size: 0.875rem;
+                flex-shrink: 0;
+                margin-left: 0.75rem;
+                white-space: nowrap;
               }
               
-              .activity-amount.withdrawal {
-                color: #ef4444;
-              }
-              
-              .activity-time {
-                color: #9ca3af;
-              }
-              
-              .no-activity {
+              .no-treasuries {
                 text-align: center;
                 padding: 2rem;
                 color: #9ca3af;
@@ -460,104 +697,50 @@ const Dashboard: React.FC<DashboardProps> = ({
               }
               
               /* Scrollbar styling */
-              .activity-list::-webkit-scrollbar {
+              .treasury-list::-webkit-scrollbar {
                 width: 6px;
               }
               
-              .activity-list::-webkit-scrollbar-track {
+              .treasury-list::-webkit-scrollbar-track {
                 background: #f1f1f1;
                 border-radius: 3px;
               }
               
-              .activity-list::-webkit-scrollbar-thumb {
+              .treasury-list::-webkit-scrollbar-thumb {
                 background: #cbd5e0;
                 border-radius: 3px;
               }
               
-              .activity-list::-webkit-scrollbar-thumb:hover {
+              .treasury-list::-webkit-scrollbar-thumb:hover {
                 background: #a0aec0;
               }
             `}</style>
-            <h3>Recent Activity</h3>
-            <div className="activity-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {subscriptions
-                .flatMap(subscription => 
-                  (subscription.events || []).map((event, index) => ({
-                    ...event,
-                    id: `${subscription.id}-${index}`,
-                    subscriptionName: subscription.name
-                  }))
-                )
-                .filter(event => event) // Remove any undefined events
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .slice(0, 5) // Show only 5 most recent events
-                .map(event => {
-                const getEventIcon = () => {
-                  switch(event.type) {
-                    case 'topup':
-                      return <div className="activity-icon deposit">+</div>;
-                    case 'withdrawal':
-                      return <div className="activity-icon withdrawal">-</div>;
-                    case 'execution':
-                      return <div className="activity-icon execution">✓</div>;
-                    case 'status_change':
-                      return <div className="activity-icon status">!</div>;
-                    default:
-                      return <div className="activity-icon">•</div>;
+            <h3>Your Treasuries</h3>
+            <div className="treasury-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {userTreasuries.length === 0 ? (
+                <div className="no-treasuries">
+                  {useLiveData && !isWalletConnected 
+                    ? 'Connect wallet to view your treasuries' 
+                    : 'No treasuries found'
                   }
-                };
-
-                const formatTimeAgo = (timestamp: string) => {
-                  const seconds = Math.floor((new Date().getTime() - new Date(timestamp).getTime()) / 1000);
-                  
-                  let interval = Math.floor(seconds / 31536000);
-                  if (interval >= 1) return `${interval} year${interval === 1 ? '' : 's'} ago`;
-                  
-                  interval = Math.floor(seconds / 2592000);
-                  if (interval >= 1) return `${interval} month${interval === 1 ? '' : 's'} ago`;
-                  
-                  interval = Math.floor(seconds / 86400);
-                  if (interval >= 1) return `${interval} day${interval === 1 ? '' : 's'} ago`;
-                  
-                  interval = Math.floor(seconds / 3600);
-                  if (interval >= 1) return `${interval} hour${interval === 1 ? '' : 's'} ago`;
-                  
-                  interval = Math.floor(seconds / 60);
-                  if (interval >= 1) return `${interval} minute${interval === 1 ? '' : 's'} ago`;
-                  
-                  return 'Just now';
-                };
-
-                return (
-                  <div key={event.id} className="activity-item">
-                    <div className="activity-icon">
-                      {getEventIcon()}
+                </div>
+              ) : (
+                userTreasuries.map((treasury, index) => (
+                  <div key={index} className="treasury-item">
+                    <div className="treasury-icon">
+                      {treasury.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="activity-details">
-                      <div className="activity-title">
-                        <span className="subscription-name">{event.subscriptionName}</span>
-                        <span className="event-details">{event.details}</span>
+                    <div className="treasury-details">
+                      <div className="treasury-name">{treasury.name}</div>
+                      <div className="treasury-address">
+                        {treasury.vaultAddress.substring(0, 6)}...{treasury.vaultAddress.substring(treasury.vaultAddress.length - 4)}
                       </div>
-                      <div className="activity-meta">
-                        {event.amount && (
-                          <span className={`activity-amount ${
-                            event.type === 'withdrawal' ? 'withdrawal' : 'deposit'
-                          }`}>
-                            {event.amount}
-                          </span>
-                        )}
-                        <span className="activity-time">
-                          {formatTimeAgo(event.timestamp)}
-                        </span>
-                      </div>
+                    </div>
+                    <div className="treasury-balance">
+                      {treasury.totalSupply} USDC
                     </div>
                   </div>
-                );
-              })}
-              {subscriptions.every(sub => !sub.events?.length) && (
-                <div className="no-activity">
-                  No recent activity found
-                </div>
+                ))
               )}
             </div>
           </div>
@@ -694,19 +877,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Crowdsale Launch Modal */}
-      {showCrowdsaleModal && deployedContracts && (
-        <CrowdsaleModal
-          isOpen={showCrowdsaleModal}
-          onClose={() => setShowCrowdsaleModal(false)}
-          onLaunch={handleLaunchCrowdsale}
-          treasuryTokenAddress={deployedContracts.treasuryTokenAddress}
-          reserveVaultAddress={deployedContracts.treasuryVaultAddress}
-          treasuryTokenSymbol={deployedContracts.treasuryTokenSymbol}
-          reserveVaultSymbol={deployedContracts.treasuryVaultSymbol}
-        />
       )}
     </div>
   );

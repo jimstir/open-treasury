@@ -2,6 +2,7 @@ export interface Treasury {
   id: number;
   treasuryName: string;
   contractAddress: string;
+  lendingContractAddress?: string;
   tokenSymbol: string;
   proposalTokenSymbol: string;
   totalValueLocked: string;
@@ -19,9 +20,31 @@ export interface Treasury {
 
 export const mockTreasuries: Treasury[] = [
   {
+    id: 0, // Using 0 to ensure it appears first
+    treasuryName: 'zJimster Treasury',
+    contractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Replace with actual deployed address
+    lendingContractAddress: '0x6FbDB2315678afecb367f032d93F642f64180aa4', // Lending contract address
+    tokenSymbol: 'zJIM',
+    proposalTokenSymbol: 'pzJIM',
+    totalValueLocked: '$0.00',
+    apy: '0.0%',
+    isJoined: true, // User is the owner
+    openProposals: 0,
+    closedProposals: 0,
+    totalMembers: 1,
+    yourStake: '0.0 zJIM',
+    ownerAddress: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // Default Hardhat account 0
+    authorizedUsers: [
+      '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' // Default Hardhat account 0
+    ],
+    treasuryTokenBalance: '0.0 zJIM',
+    proposalTokenBalance: '0.0 pzJIM'
+  },
+  {
     id: 1,
     treasuryName: 'Ethereum Treasury',
     contractAddress: '0x1234567890abcdef1234567890abcdef12345678',
+    lendingContractAddress: '0x1234567890abcdef1234567890abcdef12345679',
     tokenSymbol: 'ETH',
     proposalTokenSymbol: 'pETH',
     totalValueLocked: '$1.2M',
@@ -43,6 +66,7 @@ export const mockTreasuries: Treasury[] = [
     id: 2,
     treasuryName: 'USDC Treasury',
     contractAddress: '0x2345678901abcdef1234567890abcdef12345678',
+    lendingContractAddress: '0x2345678901abcdef1234567890abcdef12345679',
     tokenSymbol: 'USDC',
     proposalTokenSymbol: 'pUSDC',
     totalValueLocked: '$5.7M',
@@ -64,6 +88,7 @@ export const mockTreasuries: Treasury[] = [
     id: 3,
     treasuryName: 'Aave Treasury',
     contractAddress: '0x3456789012abcdef1234567890abcdef12345678',
+    lendingContractAddress: '0x3456789012abcdef1234567890abcdef12345679',
     tokenSymbol: 'AAVE',
     proposalTokenSymbol: 'pAAVE',
     totalValueLocked: '$2.1M',
@@ -85,6 +110,7 @@ export const mockTreasuries: Treasury[] = [
     id: 4,
     treasuryName: 'Dai Treasury',
     contractAddress: '0x4567890123abcdef1234567890abcdef12345678',
+    lendingContractAddress: '0x4567890123abcdef1234567890abcdef12345679',
     tokenSymbol: 'DAI',
     proposalTokenSymbol: 'pDAI',
     totalValueLocked: '$3.6M',
@@ -106,6 +132,7 @@ export const mockTreasuries: Treasury[] = [
     id: 5,
     treasuryName: 'Bitcoin Treasury',
     contractAddress: '0x5678901234abcdef1234567890abcdef12345678',
+    lendingContractAddress: '0x5678901234abcdef1234567890abcdef12345679',
     tokenSymbol: 'WBTC',
     proposalTokenSymbol: 'pWBTC',
     totalValueLocked: '$8.2M',

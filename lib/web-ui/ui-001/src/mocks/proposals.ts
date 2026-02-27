@@ -13,6 +13,8 @@ export interface Proposal {
   voteType?: 'accept' | 'reject' | null;
   ownerApproved?: boolean;
   votePercentage?: number;
+  policyName?: string; // Name of the policy (e.g., "Join a Pool")
+  contractAddress?: string; // Contract address related to the proposal
   reserveId?: number; // For backward compatibility
   formData?: any; // For form data if needed
 }
@@ -30,7 +32,9 @@ export const mockProposals: Proposal[] = [
     votesFor: 0,
     votesAgainst: 0,
     hasVoted: false,
-    ownerApproved: false
+    ownerApproved: false,
+    policyName: 'General Proposal',
+    contractAddress: '0x0000000000000000000000000000000000000000'
   },
   {
     id: 8,
@@ -43,7 +47,9 @@ export const mockProposals: Proposal[] = [
     votesFor: 0,
     votesAgainst: 0,
     hasVoted: false,
-    ownerApproved: false
+    ownerApproved: false,
+    policyName: 'Collateral Based',
+    contractAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F'
   },
   {
     id: 7,
