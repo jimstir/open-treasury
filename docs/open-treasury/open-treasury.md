@@ -53,11 +53,6 @@ first approval for activity.
 Depending on implementation, the tokenized reserve MAY be public or
 or private to a select group of shareholders who can join.
 
-Functions Include:
-
-- `depositTreasury`
-- 
-
 ### Token Issuance
 
 The tokenized reserve SHOULD be the only `owner` to mint a new `treasuryToken`.
@@ -74,8 +69,6 @@ A `reserveToken` is RECOMMENDED to be issued at a ratio of 1:1.
 A shareholder SHOULD be able to retrieve their `treasuryToken` from the tokenized reserve,
 as the staked tokens MUST NOT be accessible to the `owner` or other shareholders.
 Proposals are discussed in the following section.
-
-- deglation
 
 ### Proposals
 
