@@ -1,10 +1,11 @@
-—---
-title: OPEN TREASURY
-status: raw
+---
+title: OPEN-TREASURY
 name: The Open Treasury
-contributor: @jimstir
+status: draft
+category: Standards Track
+contributors: jimstir <x.com/jimstir0>
 
-—--
+---
 
 ## Abstract
 
