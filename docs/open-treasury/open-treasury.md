@@ -3,7 +3,7 @@ title: OPEN-TREASURY
 name: The Open Treasury
 status: draft
 category: Standards Track
-contributors: jimstir <x.com/jimstir0>
+contributors: jimstir
 
 ---
 
@@ -15,21 +15,24 @@ including governance tools to encourage multi-party involvement.
 
 ## Background
 
-The use of treasuries in blockchain products is a growing integration of many projects.
+The use of treasuries in blockchain products is a growing requirement for many projects.
 Most projects present different treasury strategies to their users,
 which can open room for manipulation and exploits.
-Especially for projects that do not take a security-first approach when building their projects.
+This is especially true for projects that do not take a security-first approach when building their projects.
 
-The Open Treasury aims to create a universal treasury standard that users can trust and
-projects can integrate with their projects quickly.
-Other features include governance voting for interested parties,
-transparent policies that grow an open treasury value.
-The goal is to improve the trust of the treasury for all interested parties by providing a familiar standard.
+The Open Treasury aims to create a universal on-chain multi-party treasury protocol that users can trust and
+projects can integrate into their projects quickly.
+Governance voting is a main feature of the protocol as treasuries tend to have multiple interested parties.
+Transparent policies are shared with all parties,
+which encourages treasury owners to conduct themselves properly.
+The goal is to improve the trust of the treasury for all interested parties by displaying every activity.
+This document details the components of public treasuries;
+private treasuries can be easily supported.
 
 ## Specification
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
-"SHOULD NOT", "RECOMMENDED",  "MAY", and
+"SHOULD NOT", "RECOMMENDED", "MAY", and
 "OPTIONAL" in this document are to be interpreted as described in
 [RFC 2119](http://tools.ietf.org/html/rfc2119).
 
@@ -39,53 +42,59 @@ The ERC7425 standard implements one [ERC20](https://eips.ethereum.org/EIPS/eip-2
 and one [ERC4626](https://eips.ethereum.org/EIPS/eip-4626) vault standard.
 The open treasury MAY have one registered `owner`,
 identified by a wallet External Owned Account(EOA) address.
-The `treasuryToken` MUST have one registered `owner`,
-which MUST be the Open Treasury contract address.
+The registered `owner` MAY assign other authorized addresses for the open treasury.
+All authorized addresses SHOULD be publicly viewable.
+If the open treasury contract has optional authorized addresses,
+the shareholder needs to verify each address and their functions if an address is a contract.
+In other words, it is the responsibility of the `owner` to identify each authorized address and
+the responsibility of the shareholder to verify the functions of those addresses before participating.
+
+The `treasuryToken` registered `owner` MUST be the open treasury contract.
 Before a user becomes a shareholder of a treasury,
 they SHOULD verify that the open treasury `owner` is not the registered `owner` of the `treasuryToken`.
-If the open treasury `owner` has control of minting the `treasuryToken`,
-the shareholder could be vulnerable to treasury manipulation.
-See [Token Issuance](#token-issuance) for more information on the token minting in an open treasury.
-Also, the contract address of the `treasuryToken` MUST be registered on the Open Treasury smart contract.
+If the open treasury `owner` has control of minting functions on the `treasuryToken` contract,
+the shareholder could be exposed to treasury manipulation.
+See [Token Issuance](#token-issuance) for more information on the token minting.
 
 The tokenized reserve is the core smart contract that records activity and
-first approval for activity.
-Depending on implementation, the tokenized reserve MAY be public or
-or private to a select group of shareholders who can join.
+voting approvals for treasury activity.
+Based on the implementation, the tokenized reserve MAY be public to all participants or
+private to a select group of shareholders.
 
 ### Token Issuance
 
 The tokenized reserve SHOULD be the only `owner` to mint a new `treasuryToken`.
-This issuance is RECOMMENDED to be a ratio of 1:1.
 Participants joining an open treasury become shareholders once an approved token is deposited in the treasury.
-
-Shareholders SHOULD NOT be able to retrieve their deposited tokens directly from the token reserve.
-An open treasury is still subject to the loss of deposited tokens.
-To exit an Open Treasury, shareholders SHOULD approve a policy that would detail the ratio of token swap.
-Policies are explained below in the [Policy](#policy) section.
+It is RECOMMENDED that shareholders are not capable of retrieving their deposited tokens directly from the tokenized reserve.
+The open treasury is still subject to the loss of deposited tokens.
+To exit an Open Treasury, shareholders MAY approve a policy that would detail the ratio of token swap.
+More details about treasury exit are detailed in the [Exit Treasury](#enter-or-exit-the-treasury) section.
+More details about policies are explained below in the [Policy](#policy) section.
 
 The `treasuryToken` will be used by shareholders to stake on open proposals.
-A `reserveToken` is RECOMMENDED to be issued at a ratio of 1:1.
-A shareholder SHOULD be able to retrieve their `treasuryToken` from the tokenized reserve,
-as the staked tokens MUST NOT be accessible to the `owner` or other shareholders.
+A `reserveToken` is RECOMMENDED to be issued at a ratio of 1:1 at the beginning,
+but the ratio SHOULD be updated based on the treasury's activities.
+The `treasuryToken` SHOULD be able to be retrieved directly from the tokenized reserve,
+The `owner` MUST NOT be able to access staked `treasuryToken`s held on the treasury contract,
+unless the owner is a shareholder themselves.
 Proposals are discussed in the following section.
 
 ### Proposals
 
-An open proposal, `proposalOpen`,
-is a request to the shareholders to transfer assets out of the treasury.
-
-The two types of `proposalOpen` request:
+An open proposal, `proposalOpen`, is a request, by the owner or authorized user,
+to the shareholders to execute some action related to the treasury.
+The RECOMMENDED two types of `proposalOpen` request:
 
 1. A transactional proposal - To transfer tokens owned by the treasury to a known address.
 2. A `closeRequest` proposal - To request an open proposal to be closed, if not done by the `owner`.
 
-- Both the shareholder number of votes and the token weight are accessible.
+Both the shareholder number of votes and the token weight SHOULD be accessible through the treasury.
+It is the responsibility of shareholders to verify all proposal types before participating.
 
 A `proposalOpen` request MAY be opened by the treasury `owner` or a shareholder.
-When open,
-an invitation for shareholders to vote is created.
-The number of proposals a shareholder votes in MAY be be recorded.
+When a proposal is open,
+shareholders can stake a `treasuryToken` which will count as one vote for the proposal.
+The number of proposals a shareholder votes in SHOULD be recorded.
 For more information on voting,
 see the [Voting](#voting) section.
 
@@ -95,7 +104,7 @@ An open proposal SHOULD record the following details:
 
 struct proposalOpen {
     address owner;
-    IERC20 token;
+ IERC20 token;
     address receiver;
     uint256 amount;
 }
@@ -135,18 +144,18 @@ The current types of voting strategies supported on an Open Treasury:
 
 - Value-Ratio Voting: When `treasuryToken`s are issued at a ratio of 1:1,
 value-ratio SHOULD be calculated by the value of the number of tokens requested to transfer to the number of tokens deposited to cast a vote.
-For example, if the proposal is requesting 100 tokens to be transfered,
+For example, if the proposal is requesting 100 tokens to be transferred,
 the proposal MUST have 101 or greater `treasuryTokens` deposited.
 - Supply-based Voting: When the total `treasuryToken` supply,
 MUST have 75% of the `treasuryToken` supply.
 It MAY be the total supply excluding any `treasuryTokens` left in open proposals.
 
-***Note: Future voting stargites may be introduced. Current voting strategies are to promote fair token allocation to voting weight.***
+***Note: Future voting strategies may be introduced. Current voting strategies are to promote fair token allocation to voting weight.***
 
 Currently, an open treasury does not implement the option to vote no or
 veto a proposal.
 Currently, a proposal is approved based on passing the RECOMMENDED voting requirements.
-Also, there are no enforced time duration requirements needed to be completed,
+Also, there are no enforced time duration requirements that need to be completed,
 but implementations MAY introduce a time-based voting scheme by using the `closeRequest` on the `proposalOpen` open at a certain time.
 
 An open proposal allows the treasury to lock `treasuryToken`s so they are not used on other open proposals.
@@ -200,7 +209,87 @@ A `proposalClose` function MAY be included to create a close request from the po
 To send tokens stored on the policy to the treasury,
 the policy SHOULD use the `depositTreasury` function.
 
+### Enter or Exit the Treasury
+
+There MAY be an exit strategy to protect a deployed Open Treasury from sudden liquidity crises, which include
+bank runs on the underlying token held by the treasury
+and to ensure that profits are fairly distributed to active participants.
+It is the user's responsibility to verify the exit strategy before joining a treasury.
+A treasury may not keep token issuance at a 1:1 ratio, as this could cause shareholder loss of funds in certain types of treasuries.
+If a treasury has an `Open Join` design,
+the user can assume that the ratio will remain at 1:1 and
+the exit strategy may be done directly from the open treasury smart contract.
+This is the base case, type `1A`, for an Open Treasury,
+but this approach limits the use cases of the treasury activities.
+Below are the RECOMMENDED join and exit strategies,
+with each join paired with RECOMMENDED exits:
+
+1. Join Mechanics
+
+How external tokens enter the treasury and
+are converted into `treasuryToken` shares.
+
+Type `1A`: Open Join
+
+**Mechanism**: Users MUST be able to deposit the underlying token at any time.
+Shares are minted immediately based on the real-time `totalAssets()` calculation.
+**Behavior**: Highly susceptible to MEV front-running and
+Oracle lag if the vault actively trades volatile assets.
+**Exit Pairs**: `2A` 
+
+Type `1B`: Epoch (Funding Queues)
+
+**Mechanism**: Deposits are held in an isolated "Pending Queue" and
+do not immediately interact with the active treasury.
+Shares are minted when a round finalization event is triggered.
+**Behavior**: New shareholders MAY be discouraged from joining a treasury for short-term gain.
+**Exit Pairs**: `2A`,`2B`, `2C`, `2D`
+
+2. Exit Mechanics
+
+How `treasuryToken` shareholders can exit an open treasury.
+
+Type `2A`: Immutable (Restricted / Secondary Only)
+
+**Mechanism**: There is no defined exit function implemented.
+**Behavior**: The underlying token MUST never be individually reclaimed.
+Shareholders must rely entirely on external secondary markets (e.g., Uniswap) to exit.
+
+Type `2B`: Consensus (Proposal-Gated)
+
+**Mechanism**: Withdrawals are locked by default.
+The underlying token controlled by the treasury becomes exit liquidity only when an exit proposal is approved.
+**Behavior**: Upon approval, active policies SHOULD be closed and liquidated.
+Once policies are closed,
+a time-bound window SHOULD be opened for shareholders to exit.
+This proposal MAY use the base [ERC4626](https://eips.ethereum.org/EIPS/eip-4626) `withdraw` method,
+or define a specific ratio.
+
+Type `2C`: Time-Locked (Cooldown Period)
+
+**Mechanism**: Shareholders can request an exit at any time, but the contract enforces a mandatory N-time cooldown before the funds are released. 
+Used to prevent flash-loan attacks.
+**Behavior**: This SHOULD give the `owner` sufficient warning to liquidate active trades gracefully without market slippage.
+
+Type `2D`: Conditional (Dissolution / Milestone)
+
+**Mechanism**: Exits are locked by default but can be triggered by specific on-chain conditions. 
+For example, a specific timestamp is reached, a milestone boolean evaluates to false,
+or the protocol is formally dissolved.
+Acts as an emergency release valve or escrow refund mechanism.
+**Behavior**: This MUST close all open policies,
+block all future join actions, and keep exits open indefinitely.
+
+#### The Base Exit Case
+
+An open treasury that follows the tokenized reserve standard strictly,
+by default restricts direct withdrawals.
+Assets MAY be actively in use on different policy contracts,
+which does not guarantee immediate 1:1 liquidity at all times.
+
 ## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 ## References
 
