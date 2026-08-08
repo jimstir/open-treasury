@@ -67,14 +67,13 @@ The tokenized reserve SHOULD be the only `owner` to mint a new `treasuryToken`.
 Participants joining an open treasury become shareholders once an approved token is deposited in the treasury.
 It is RECOMMENDED that shareholders are not capable of retrieving their deposited tokens directly from the tokenized reserve.
 The open treasury is still subject to the loss of deposited tokens.
-To exit an Open Treasury, shareholders MAY approve a policy that would detail the ratio of token swap.
+To exit an Open Treasury, shareholders MAY approve a policy that would detail the ratio of token swap based on the performance of that treasury.
 More details about treasury exit are detailed in the [Exit Treasury](#enter-or-exit-the-treasury) section.
 More details about policies are explained below in the [Policy](#policy) section.
 
 The `treasuryToken` will be used by shareholders to stake on open proposals.
-A `reserveToken` is RECOMMENDED to be issued at a ratio of 1:1 at the beginning,
-but the ratio SHOULD be updated based on the treasury's activities.
-The `treasuryToken` SHOULD be able to be retrieved directly from the tokenized reserve,
+A `reserveToken` is MUST be issued at a ratio of 1:1.
+The `treasuryToken` MUST be able to be retrieved directly from the tokenized reserve,
 The `owner` MUST NOT be able to access staked `treasuryToken`s held on the treasury contract,
 unless the owner is a shareholder themselves.
 Proposals are discussed in the following section.
@@ -212,7 +211,7 @@ the policy SHOULD use the `depositTreasury` function.
 ### Enter or Exit the Treasury
 
 There MAY be an exit strategy to protect a deployed Open Treasury from sudden liquidity crises, which include
-bank runs on the underlying token held by the treasury
+bank runs on the deposited token held by the treasury
 and to ensure that profits are fairly distributed to active participants.
 It is the user's responsibility to verify the exit strategy before joining a treasury.
 A treasury may not keep token issuance at a 1:1 ratio, as this could cause shareholder loss of funds in certain types of treasuries.
@@ -231,7 +230,7 @@ are converted into `treasuryToken` shares.
 
 Type `1A`: Open Join
 
-**Mechanism**: Users MUST be able to deposit the underlying token at any time.
+**Mechanism**: Users MUST be able to deposit the approvedToken token at any time.
 Shares are minted immediately based on the real-time `totalAssets()` calculation.
 **Behavior**: Highly susceptible to MEV front-running and
 Oracle lag if the vault actively trades volatile assets.
@@ -252,13 +251,13 @@ How `treasuryToken` shareholders can exit an open treasury.
 Type `2A`: Immutable (Restricted / Secondary Only)
 
 **Mechanism**: There is no defined exit function implemented.
-**Behavior**: The underlying token MUST never be individually reclaimed.
+**Behavior**: The approved deposited token MUST never be individually reclaimed.
 Shareholders must rely entirely on external secondary markets (e.g., Uniswap) to exit.
 
 Type `2B`: Consensus (Proposal-Gated)
 
 **Mechanism**: Withdrawals are locked by default.
-The underlying token controlled by the treasury becomes exit liquidity only when an exit proposal is approved.
+The approved deposited token controlled by the treasury becomes exit liquidity only when an exit proposal is approved.
 **Behavior**: Upon approval, active policies SHOULD be closed and liquidated.
 Once policies are closed,
 a time-bound window SHOULD be opened for shareholders to exit.
