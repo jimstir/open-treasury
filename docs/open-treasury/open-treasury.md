@@ -197,6 +197,10 @@ function withdraw() public {
     Itreasury(treasury).depositTreasury;
 }
 
+// Get the total value of all tokens stored in this policy
+function getTotalValue() public;
+
+
 ```
 
 The policy SHOULD record the `proposalOpen` number, as a proposal that was opened by the policy.
@@ -295,3 +299,28 @@ Copyright and related rights waived via [CC0](https://creativecommons.org/public
 - [ERC7425](https://eips.ethereum.org/EIPS/eip-7425)
 - [ERC20](https://eips.ethereum.org/EIPS/eip-20)
 - [ERC4626](https://eips.ethereum.org/EIPS/eip-4626)
+
+## TODO
+
+# Architectural Specification: Proposal Accounting & Token Lifecycle
+
+## 1. Depositor-Centric Accounting vs. ERC-4626 Token-Holder Model
+* **Core Philosophy:** Unlike standard ERC-4626 vaults where redemptions are bearer-instrument centric (allowing any current share holder to redeem assets to any arbitrary address), `TreasuryVault` implements a **Depositor-Centric Model**.
+* **Identity Preservation:** The internal ledger (`userBook`) is strictly indexed by the original participant's address (`receiver`).
+* **Capital Protection:** Underlying assets can only ever be redeemed back to the original depositor (`receiver`). This ensures that in permissioned, compliant, or role-based treasury environments, capital cannot be extracted or diverted to unauthorized third-party addresses.
+
+## 2. Decoupling of ERC-4626 Mechanics and Proposal Governance
+* **Ledger Hierarchy:** The `userBook` proposal ledger supersedes raw ERC-4626 accounting. While ERC-4626 governs standard ERC-20 share balances, mints, and burns, `userBook` independently enforces proposal-level voting weight, lock-up periods, and per-proposal redemption caps.
+* **Pure Share Ledger:** All internal accounting records (`totalShares`, `userBook.deposit`, `userBook.withdrew`) are denominated strictly in **shares**. This eliminates integer rounding drift and insulates governance accounting from underlying asset exchange-rate fluctuations.
+
+## 3. Share Custody & Voter Responsibility
+* **Separation of Share Token vs. Proposal Record:** When a participant locks `treasuryToken` into a proposal, they receive vault shares. The proposal record remains tied to the original depositor (`receiver`), while the shares exist as standard ERC-20 tokens in their wallet.
+* **External DeFi & Delegation:** Participants may custody, delegate, or deploy these shares into external smart contracts (e.g., `VoterPool`, escrows, delegation modules, or lending markets).
+* **Redemption Restriction:** Any holder or delegate (`owner`) executing a redemption can only route the underlying payout back to the registered depositor (`receiver`). The vault does not protect voters if they mismanage or transfer their shares externally; managing, securing, and retrieving those shares remains the participant's responsibility.
+
+## 4. Per-Proposal Isolation & Anti-Double-Voting
+* **Proposal Locking:** Tokens committed to a proposal cannot be retrieved until the proposal is formally closed via `proposalClose()`. This prevents double-voting attacks across active proposals.
+* **Cross-Proposal Boundary:** Redemptions are strictly bounded to the remaining unredeemed shares of that specific proposal:
+  * `remaining = userBook[receiver][proposal].deposit - userBook[receiver][proposal].withdrew`
+  * `require(shares <= remaining, "Exceeds proposal deposit")`
+* **Global Balance Protection:** A participant cannot burn their global vault share balance through a single closed proposal. All redemptions must stay within the exact deposit recorded for that specific proposal ID.
